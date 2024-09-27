@@ -4,7 +4,7 @@ CFLAGS = -Wall -Werror -g
 CXXFLAGS = $(CFLAGS)
 LDFLAGS = $(CFLAGS)
 
-TARGETS = proj1
+TARGETS = proj2
 
 all: $(TARGETS)
 
