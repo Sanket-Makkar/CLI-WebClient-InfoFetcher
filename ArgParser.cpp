@@ -15,6 +15,7 @@
 #include <list>
 #include <string>
 #include <string.h>
+#include <vector>
 
 using namespace std;
 
@@ -91,7 +92,7 @@ int parseArgs(int argc, char *argv[], void (*grabINPUT_URL)(char INPUT_URL[]), v
     return cmd_line_flags;
 }
 
-string grabHostAndPath(string url, void (*grabHost)(string host), void (*grabPath)(string path)){
+vector<string> grabHostAndPath(string url){
     string defaultProtocol = "http://";
     if (!validateURL(&url, defaultProtocol)){ // has a side effect of lower-casing any http:// given
         printf("URL protocol not specified correctly\n");
@@ -116,10 +117,10 @@ string grabHostAndPath(string url, void (*grabHost)(string host), void (*grabPat
     hostName += postProtocolURL.substr(COUNTER_INITIALIZER, hostLength);
     pathName += postProtocolURL.substr(pathStart, postProtocolURL.length());
 
-    grabHost(hostName);
-    grabPath(pathName);
 
-    return url;
+    vector<string> hostPathVector = {hostName, pathName};
+
+    return hostPathVector;
 }
 
 bool validateURL(string* url, string defaultProtocol){

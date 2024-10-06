@@ -8,7 +8,7 @@ TARGETS = proj2
 
 all: $(TARGETS)
 
-$(TARGETS): proj2.o ArgParser.o
+$(TARGETS): proj2.o ArgParser.o WebClient.o
 	$(CXX) $(LDFLAGS) -o $@ $^
 
 %.o: %.cc
@@ -19,6 +19,7 @@ $(TARGETS): proj2.o ArgParser.o
 
 clean:
 	rm -f *.o
+	rm -f *.txt
 	
 distclean: clean
 	rm -f $(TARGETS)

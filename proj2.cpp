@@ -8,6 +8,7 @@
 */
 #include <stdio.h>
 #include "ArgParser.h"
+#include "WebClient.h"
 #include <string>
 #include <string.h>
 
@@ -16,9 +17,6 @@ using namespace std;
 // we will store the file name we grab from parseArgs here
 string URL;
 string savePath;
-
-string host;
-string path;
 
 // this callback will grab the url from parseArgs
 void urlStorage(char url[]){
@@ -29,27 +27,14 @@ void saveStorage(char path[]){
     savePath = path;
 }
 
-void hostStorage(string givenHost){
-    host = givenHost;
-}
-
-void pathStorage(string givenPath){
-    path = givenPath;
-}
-
 int main(int argc, char *argv[])
 {
     // execute parse args, passing in a callback that will grab file name, and returning/storing the args flag indicator
-    parseArgs(argc, argv, urlStorage, saveStorage);
-    //int args = 
-    // setup the verifier
-    // Ipv4Verifier verifier = Ipv4Verifier(args, fileNameStorage);
-    // verify
-    // verifier.IPv4Verify();
-    // printf("%s\n", URL.c_str());
+    int argLine = parseArgs(argc, argv, urlStorage, saveStorage);
 
-    printf("%s\n", savePath.c_str());
-    printf("%s\n", grabHostAndPath(URL, hostStorage, pathStorage).c_str());
-    printf("%s + %s\n", host.c_str(), path.c_str());
+    WebClient client = WebClient(argLine, URL, savePath);
+
+    client.Exec();
+    
     return 0;
 }

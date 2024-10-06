@@ -12,6 +12,7 @@
 #define ARGSPARSER_H
 
 #include <string>
+#include <vector>
 using namespace std;
 
 void usage(char *progname);
@@ -21,7 +22,7 @@ bool checkHasArg(int cmd_flags, int arg);
 bool verifyValidCommandInput(int cmd_flags);
 bool flagsContainBit(int cmd_flags, int bit);
 void checkNonSetFlag(int cmd_flags, int bit, char arg);
-string grabHostAndPath(string url, void (*grabHost)(string host), void (*grabPath)(string path));
+vector<string> grabHostAndPath(string url);
 bool validateURL(string* url, string defaultProtocol);
 
 #endif // ARGSPARSER_H
