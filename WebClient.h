@@ -12,13 +12,15 @@ class WebClient{
         string savePath;    
         string host = "";
         string path = "";
+        string getRequest = "";
 
-        void handleCLIArgs();
+        void handleCLIArgs(string header, string request);
         int parseArgLineOptionals();
-        vector<string> httpGET();
+        vector<string> httpGET(string request);
         vector<string> splitHttpHeaderAndResponse(string httpResponse);
 
         void handleHttpRSPStatus(string header);
+        string appendAtNewline(string toAppend, string stringToConsider);
 
     public:
         WebClient(int argLine, string url, string inputSavePath);

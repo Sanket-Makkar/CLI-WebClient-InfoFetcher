@@ -51,36 +51,46 @@ void WebClient::Exec(){
         * host should be what follows the http://
     */
 
+    /* HTTP GET request formatting (GET <path> HTTP/1.0
+                                    HOST: <host>
+                                    User-Agent: <name of user agent>
+    */
+    getRequest = "GET " + path + " HTTP/1.0\r\nHost: " + host + "\r\nUser-Agent: Case CSDS 325/425 WebClient 0.1\r\n\r\n";
+    
     // actual socket work
-    vector<string> splitResponse = httpGET();
+    vector<string> splitResponse = httpGET(getRequest);
 
     // unpack the values
     string header = splitResponse.at(COUNTER_INITIAL_VALUE);
     string response = splitResponse.at(OFF_BY_ONE_OFFSET);
 
+    // deal with 200, 301, 400, 404, 505 error codes
     handleHttpRSPStatus(header);
 
+    // CLI work
+    handleCLIArgs(header, getRequest);
+
+    // save the file (we would have exit if non-200 (not OK) error codes came up)
     FILE * file = fopen(savePath.c_str(), "w");
     fprintf(file, "%s", response.c_str());
     fclose(file);
-
-    // CLI work
-    handleCLIArgs();
 }
 
-void WebClient::handleCLIArgs(){
+void WebClient::handleCLIArgs(string header, string request){
     int argLineOptional = parseArgLineOptionals();
     switch(argLineOptional){
-        case ARG_INFO:
+        case ARG_INFO: // -i
             printf("INFO: host: %s\n", host.c_str());
             printf("INFO: web_file: %s\n", path.c_str());
             printf("INFO: output_file: %s\n", savePath.c_str());
             break;
 
-        case ARG_PRINT_STD_HEADER:
+        case ARG_PRINT_STD_HEADER: // -a
+            printf("%s", appendAtNewline("RSP: ", header).c_str());
             break;
 
-        case ARG_PRINT_STD_REQUEST:
+        case ARG_PRINT_STD_REQUEST: // -q
+            printf("%s", appendAtNewline("REQ: ", request).c_str());
             break;
         
         default:
@@ -101,18 +111,14 @@ int WebClient::parseArgLineOptionals(){
     return -1;
 }
 
-vector<string> WebClient::httpGET(){
+vector<string> WebClient::httpGET(string request){
     struct sockaddr_in sin;
     struct hostent *hinfo;
     struct protoent *protoinfo;
     char buffer [BUFLEN];
     int sd, ret;
     
-    /* HTTP GET request formatting (GET <path> HTTP/1.0
-                                    HOST: <host>
-                                    User-Agent: <name of user agent>
-    */
-    string get_request = "GET " + path + " HTTP/1.0\r\nHost: " + host + "\r\nUser-Agent: Case CSDS 325/425 WebClient 0.1\r\n\r\n";
+    
 
     /* DNS lookup on host*/
     hinfo = gethostbyname(host.c_str());
@@ -147,8 +153,8 @@ vector<string> WebClient::httpGET(){
     }
 
     /* Send HTTP GET request */
-    if (write(sd, get_request.c_str(), strlen(get_request.c_str())) < 0){
-        printf("Error: Web client unable to send request '%s'\n", get_request.c_str());
+    if (write(sd, request.c_str(), strlen(request.c_str())) < 0){
+        printf("Error: Web client unable to send request '%s'\n", request.c_str());
         exitWithErr;
     }
     
@@ -225,4 +231,23 @@ void WebClient::handleHttpRSPStatus(string header){
             exitWithErr;
             break;
     }
+}
+
+string WebClient::appendAtNewline(string toAppend, string stringToConsider){
+    string totalString = "";
+    string remainingString = stringToConsider;
+    string newlineSeparator = "\r\n";
+
+    while (true){
+        int newLinePosition = remainingString.find(newlineSeparator.c_str());
+        if (newLinePosition <= 0){
+            break;
+        }
+        string upToNewLine = remainingString.substr(COUNTER_INITIAL_VALUE, newLinePosition + strlen(newlineSeparator.c_str()));
+        remainingString = remainingString.substr(newLinePosition + strlen(newlineSeparator.c_str()));
+        
+        totalString.append(toAppend);
+        totalString.append(upToNewLine);
+    }
+    return totalString;
 }
