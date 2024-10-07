@@ -70,6 +70,9 @@ void WebClient::Exec(){
     // CLI work
     handleCLIArgs(header, getRequest);
 
+    // response can have binary data, and strings hate that - so lets convert to an unsigned char vector
+    // vector<unsigned char> resposneConten
+
     // save the file (we would have exit if non-200 (not OK) error codes came up)
     FILE * file = fopen(savePath.c_str(), "w");
     fprintf(file, "%s", response.c_str());
@@ -117,8 +120,6 @@ vector<string> WebClient::httpGET(string request){
     struct protoent *protoinfo;
     char buffer [BUFLEN];
     int sd, ret;
-    
-    
 
     /* DNS lookup on host*/
     hinfo = gethostbyname(host.c_str());
@@ -159,7 +160,6 @@ vector<string> WebClient::httpGET(string request){
     }
     
     /* Read and print the HTTP response */
-    // We use a vector here to capture the whole response
     string wholeResponse = "";
     memset (buffer,0x0,BUFLEN);
     while ((ret = read(sd, buffer, BUFLEN -1))){
@@ -211,23 +211,23 @@ void WebClient::handleHttpRSPStatus(string header){
         case CODE_OK:
             break;
         case CODE_MOVED_PERMANENTLY:
-            printf("Error: Moved permanently, unable to access requested location\n");
+            printf("Error (%d): Moved permanently, unable to access requested location\n", CODE_MOVED_PERMANENTLY);
             exitWithErr;
             break;
         case CODE_BAD_REQUEST:
-            printf("Error: Bad request, please re-enter a valid request to the server\n");
+            printf("Error (%d): Bad request, please re-enter a valid request to the server\n", CODE_BAD_REQUEST);
             exitWithErr;
             break;
         case CODE_NOT_FOUND:
-            printf("Error: Requested document not found on server\n");
+            printf("Error (%d): Requested document not found on server\n", CODE_NOT_FOUND);
             exitWithErr;
             break;
         case CODE_HTTP_VERSION_NOT_SUPPORTED:
-            printf("Error: HTTP version is not supported\n");
+            printf("Error (%d): HTTP version is not supported\n", CODE_HTTP_VERSION_NOT_SUPPORTED);
             exitWithErr;
             break;
         default:
-            printf("Bad error code, please try again");
+            printf("Non-200 error code, please try again");
             exitWithErr;
             break;
     }
