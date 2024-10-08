@@ -176,7 +176,7 @@ void WebClient::httpGET(string request){
     }
 
     /* Send HTTP GET request */
-    if (write(sd, request.c_str(), strlen(request.c_str())) < COUNTER_INITIAL_VALUE){
+    if (fwrite(request.c_str(), BYTES_TO_WRITE_AT_A_TIME, request.length(), sp) != request.length()){
         printf("Error: Web client unable to send request '%s'\n", request.c_str());
         exitWithErr;
     }
