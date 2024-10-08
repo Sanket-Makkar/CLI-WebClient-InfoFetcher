@@ -1,0 +1,18 @@
+Name: Sanket Makkar
+CaseID:         sxm1626
+File Name:      notes.txt
+Date Created:   9/27/2024
+Description:    This is a file to contains notes regarding the CSDS325 proj2 assignment
+
+Special Notes:
+I have implemented the extra-credit extension for following redirects. The basic scheme of how it works is: if -r and 301 code --> find location specifier --> follow location specifier in the way we had been already.
+
+To make the files just type "make".
+To clean the object files type "make clean".
+To clean the directory type "make distclean"
+
+General Description:
+The project is composed of a few key files:
+- ArgParser.cpp & ArgParser.h: These are similar to the previous assignments ArgParser.cpp and ArgParser.h, however I have made a some changes to enable better checking of input data (url, file location), and added a method to extract the host and path from an input URL. Like in the last assignment these files implement and describe the header for a module ArgParser with useful arg-parsing methods.
+- WebClient.cpp & WebClient.h: These orchestrate the core functionality in this assignment, doing the core socket work, dealing with error codes in the response, and reacting to CLI options given appropriately (printing to the CLI). These files implement and describe the header for WebClient, a class that - given appropriate CLI data, url, and savePath, will act as the web-client specified in the project.
+- proj2.cpp: This, like in the last project, is the file that contains the "main" that actually gets executed. It acts as the glue between ArgParser and WebClient, orchestrating the use of ArgParser to gather data around CLI arguments and inputs (ArgParser will check their validity), and using WebClient on this information to act as the web-client we specified for this project.

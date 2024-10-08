@@ -34,7 +34,7 @@ int main(int argc, char *argv[])
 
     WebClient client = WebClient(argLine, URL, savePath);
 
-    client.GrabFromNetwork();
+    client.grabFromNetwork();
 
     return 0;
 }

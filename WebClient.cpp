@@ -1,6 +1,6 @@
 /*  Name: Sanket Makkar
     CaseID:         sxm1626
-    File Name:      proj2.cpp
+    File Name:      WebClient.cpp
     Date Created:   9/27/2024
     Description:    The purpose of this file is to implement the core functionality - i.e. the socket work and
                     arg-responses based on resulting socket work - as required by this assignment. This file in 
@@ -21,10 +21,17 @@
 #define ARG_INFO   0x2
 #define ARG_PRINT_STD_REQUEST 0x4
 #define ARG_PRINT_STD_HEADER 0x8
+#define ARG_REDIRECT 0x100
 
 // Useful information for the socket work we will be doing
 #define PORT 80
 #define PROTOCOL "tcp"
+
+// Variables related to analyzing the actual http response
+#define DOUBLE_LINE_SEPARATOR "\r\n\r\n"
+#define HTTP_VERSION "HTTP/1.0 "
+#define SINGLE_LINE_SEPARATOR "\r\n"
+#define LOCATION_PREFIX "Location: "
 
 // Data regarding buffer management (used when we fread from the socket)
 #define BUFLEN 1024
@@ -48,14 +55,14 @@
 
 using namespace std;
 
-WebClient::WebClient(int argLine, string url, string inputSavePath) : argLine(argLine), url(url), savePath(inputSavePath) {
+WebClient::WebClient(int argLine, string url, string inputSavePath) : argLine(argLine), url(url), savePath(inputSavePath){
     /* Basic constructor for the web client - stores passed argline, url, save path, and grabs the host and path from the url*/
     vector<string> hostPathVector = grabHostAndPath(url);
     host = hostPathVector.at(COUNTER_INITIAL_VALUE);
     path = hostPathVector.at(COUNTER_INITIAL_VALUE + OFF_BY_ONE_OFFSET);
 }
 
-void WebClient::GrabFromNetwork(){
+void WebClient::grabFromNetwork(){
     /* This is the function that actually allows the web-client to do its core work (going to url, providing output, saving file appropriately) 
      * When we reach here: 
         * host url is - at least in the sense of http:// formatting - valid
@@ -69,12 +76,12 @@ void WebClient::GrabFromNetwork(){
                                     User-Agent: <name of user agent>
     */
     string getRequest = "GET " + path + " HTTP/1.0\r\nHost: " + host + "\r\nUser-Agent: Case CSDS 325/425 WebClient 0.1\r\n\r\n";
-    
+
     // actual socket work
     httpGET(getRequest);
 
     // deal with 200, 301, 400, 404, 505 error codes
-    handleHttpRSPStatus(headerIn);
+    handleHttpRSPStatus(headerIn, getRequest);
 
     // CLI work
     handleCLIArgs(headerIn, getRequest);
@@ -88,13 +95,12 @@ void WebClient::GrabFromNetwork(){
     }
     fwrite(responseIn.data(), BYTES_TO_WRITE_AT_A_TIME, responseIn.size(), file);
     fclose(file);
-    
 }
 
 void WebClient::handleCLIArgs(string header, string request){
     int argLineOptional = parseArgLineOptionals(); // figure out which cli args were made
     // we request using the double newline ending format, and appendAtNewline doesn't tend to like that format very much
-    string reducedRequest = request.substr(COUNTER_INITIAL_VALUE, request.find("\r\n\r\n"));
+    string reducedRequest = request.substr(COUNTER_INITIAL_VALUE, request.find(DOUBLE_LINE_SEPARATOR));
     switch(argLineOptional){ // for each arg case
         case ARG_INFO: // -i
             printf("INFO: host: %s\n", host.c_str());
@@ -127,7 +133,7 @@ int WebClient::parseArgLineOptionals(){
     else if (flagsContainBit(argLine, ARG_PRINT_STD_REQUEST)){
         return ARG_PRINT_STD_REQUEST;
     }
-    return -1;
+    return FUNCTION_ERROR_RETURN_VALUE;
 }
 
 void WebClient::httpGET(string request){
@@ -176,7 +182,7 @@ void WebClient::httpGET(string request){
     }
 
     /* Send HTTP GET request */
-    if (fwrite(request.c_str(), BYTES_TO_WRITE_AT_A_TIME, request.length(), sp) != request.length()){
+    if (write(sd, request.c_str(), strlen(request.c_str())) < COUNTER_INITIAL_VALUE){
         printf("Error: Web client unable to send request '%s'\n", request.c_str());
         exitWithErr;
     }
@@ -189,7 +195,7 @@ void WebClient::httpGET(string request){
     // first look for header - get chars from socket until we hit EOF or we find the double newline separator
     while ((tempChar = fgetc(sp)) != EOF){
         responseRead += tempChar;
-        separatorPos = responseRead.find("\r\n\r\n");
+        separatorPos = responseRead.find(DOUBLE_LINE_SEPARATOR);
         if (separatorPos >= 0){
             break;
         }
@@ -201,7 +207,7 @@ void WebClient::httpGET(string request){
     vector<unsigned char> buffer; // this holds the data (unsigned char works for any UTF - all types of data not just ascii)
     char tempBuffer[BUFLEN]; // we fill up this tempBuffer for the sake of using fread, but this is just a bucket for the vector above
     int bytesRead = 0; // helps us append to buffer (appropriate quantity from tempBuffer)
-    while ((bytesRead = fread(tempBuffer, 1, sizeof(tempBuffer), sp)) > 0) {
+    while ((bytesRead = fread(tempBuffer, 1, sizeof(tempBuffer), sp)) > 0){
         buffer.insert(buffer.end(), tempBuffer, tempBuffer + bytesRead); 
     }
 
@@ -216,37 +222,48 @@ void WebClient::httpGET(string request){
     return;
 }
 
-void WebClient::handleHttpRSPStatus(string header){
+void WebClient::handleHttpRSPStatus(string header, string getRequest){
     /* Responds to the error code of a returned HTTP response*/
     // predefine some useful vars that help define the position of the HTTP response error code
-    int headerPrecodeSize = strlen("HTTP/1.1 ");
+    int headerPrecodeSize = strlen(HTTP_VERSION);
     int headerCodeSize = strlen("###");
     // find the HTTP response error code
     string responseCode = header.substr(headerPrecodeSize, headerPrecodeSize + headerCodeSize + OFF_BY_ONE_OFFSET);
     int code = stoi(responseCode); // we want it as an int
-
     // for each code situation... (print err if not 200)
     switch(code){
         case CODE_OK:
             break;
         case CODE_MOVED_PERMANENTLY:
-            printf("Error (%d): Moved permanently, unable to access requested location\n", CODE_MOVED_PERMANENTLY);
-            exitWithErr;
+            // If redirect flag set then follow redirects
+            if (flagsContainBit(argLine, ARG_REDIRECT)){
+                url = searchForUrl(header); 
+                vector<string> hostAndPath = grabHostAndPath(url);
+                host = hostAndPath.at(COUNTER_INITIAL_VALUE);
+                path = hostAndPath.at(COUNTER_INITIAL_VALUE + OFF_BY_ONE_OFFSET);
+                handleCLIArgs(header, getRequest);
+                grabFromNetwork();
+                exitWithNoErr;
+            }
+            else{ // else print an error and leave
+                fprintf(stderr, "Error (%d): Moved permanently, unable to access requested location\n", CODE_MOVED_PERMANENTLY);
+                exitWithErr;
+            }
             break;
         case CODE_BAD_REQUEST:
-            printf("Error (%d): Bad request, please re-enter a valid request to the server\n", CODE_BAD_REQUEST);
+            fprintf(stderr, "Error (%d): Bad request, please re-enter a valid request to the server\n", CODE_BAD_REQUEST);
             exitWithErr;
             break;
         case CODE_NOT_FOUND:
-            printf("Error (%d): Requested document not found on server\n", CODE_NOT_FOUND);
+            fprintf(stderr, "Error (%d): Requested document not found on server\n", CODE_NOT_FOUND);
             exitWithErr;
             break;
         case CODE_HTTP_VERSION_NOT_SUPPORTED:
-            printf("Error (%d): HTTP version is not supported\n", CODE_HTTP_VERSION_NOT_SUPPORTED);
+            fprintf(stderr, "Error (%d): HTTP version is not supported\n", CODE_HTTP_VERSION_NOT_SUPPORTED);
             exitWithErr;
             break;
         default: // if we don't get a 200, but we don't know the explicit error - just mention the non-200 error code
-            printf("Non-%d error code, please try again", CODE_OK);
+            fprintf(stderr, "Error: Non-%d error code, please try again", CODE_OK);
             exitWithErr;
             break;
     }
@@ -277,5 +294,16 @@ string WebClient::appendAtNewline(string toAppend, string stringToConsider){
         // put the part of the line
         totalString.append(upToNewLine);
     }
-    return totalString + "\r\n";
+    return totalString + SINGLE_LINE_SEPARATOR;
+}
+
+// This was intended for the -r extra credit, however it was 
+string WebClient::searchForUrl(string header){
+    int locationPos = header.find(LOCATION_PREFIX) + strlen(LOCATION_PREFIX);
+
+    if (locationPos >= 0){
+        string postLocation = header.substr(locationPos);
+        return postLocation.substr(COUNTER_INITIAL_VALUE, postLocation.find(SINGLE_LINE_SEPARATOR));
+    }
+    return "";
 }

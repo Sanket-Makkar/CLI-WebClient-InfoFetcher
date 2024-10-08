@@ -25,15 +25,19 @@ using namespace std;
 #define ARG_PRINT_STD_REQUEST 0x4
 #define ARG_PRINT_STD_HEADER 0x8
 #define ARG_SAVE_LOCATION 0x10
+#define ARG_REDIRECT 0x100
 
 // Basic counter related constants
 #define COUNTER_INITIALIZER 0
 #define OFF_BY_ONE_OFFSET 1
 
+#define FIRST_VALUE 0
+#define EMPTY_CLI_ARGS 0
+
 // this is a local copy of the file name and a CLI flags holder (init to 0 - no flags)
 char *INPUT_URL = NULL;
 char *saveLocation = NULL;
-unsigned int cmd_line_flags = 0x00000;
+unsigned int cmd_line_flags = 0x000000;
 list<int> requiredArgsList = {ARG_INPUT_URL, ARG_SAVE_LOCATION};
 list<int> uniqueArgsList = {ARG_INFO, ARG_PRINT_STD_REQUEST, ARG_PRINT_STD_HEADER};
 
@@ -43,11 +47,9 @@ list<int> uniqueArgsList = {ARG_INFO, ARG_PRINT_STD_REQUEST, ARG_PRINT_STD_HEADE
 // We take an input of argc, argv from the caller - arguments and number of arguments, as well as two callbacks to execute at the end of the function call
 int parseArgs(int argc, char *argv[], void (*grabINPUT_URL)(char INPUT_URL[]), void (*grabSave)(char saveLocation[])){
     int opt;
-    while ((opt = getopt(argc, argv, "iqau:w:")) != -1)
-    {
+    while ((opt = getopt(argc, argv, "iqaru:w:")) != -1){
         // check for cases of iqauw
-        switch (opt)
-        {
+        switch (opt){
             case 'i': // if valid -i given, set ARG_INFO flag
                 checkNonSetFlag(cmd_line_flags, ARG_INFO, 'i'); // don't let the user enter a flag more than one time
                 cmd_line_flags |= ARG_INFO;
@@ -70,15 +72,19 @@ int parseArgs(int argc, char *argv[], void (*grabINPUT_URL)(char INPUT_URL[]), v
                 cmd_line_flags |= ARG_SAVE_LOCATION;
                 saveLocation = optarg;
                 break;
+            case 'r':
+                checkNonSetFlag(cmd_line_flags, ARG_REDIRECT, 'r');
+                cmd_line_flags |= ARG_REDIRECT;
+                break;
             case '?': // if invalid option provided, react with an error message and exit
-                usage(argv[0]);
+                usage(argv[FIRST_VALUE]);
                 exitWithErr;
             default: // and if nothing else gets caught then just react with an error message and exit
-                usage(argv[0]);
+                usage(argv[FIRST_VALUE]);
         }
     }
 
-    if (cmd_line_flags == 0){ // no command-line flags set implies no CLI option was given up until now (the loop above would have caught it)
+    if (cmd_line_flags == EMPTY_CLI_ARGS){ // no command-line flags set implies no CLI option was given up until now (the loop above would have caught it)
         fprintf(stderr, "Error: no command line option given\n");
         exitWithErr;
     }
@@ -95,7 +101,7 @@ int parseArgs(int argc, char *argv[], void (*grabINPUT_URL)(char INPUT_URL[]), v
 vector<string> grabHostAndPath(string url){
     string defaultProtocol = "http://";
     if (!validateURL(&url, defaultProtocol)){ // has a side effect of lower-casing any http:// given
-        printf("URL protocol not specified correctly\n");
+        printf("Error: URL protocol not specified correctly for url (%s)\n", url.c_str());
         exitWithErr;
     }
 
@@ -116,8 +122,6 @@ vector<string> grabHostAndPath(string url){
 
     hostName += postProtocolURL.substr(COUNTER_INITIALIZER, hostLength);
     pathName += postProtocolURL.substr(pathStart, postProtocolURL.length());
-
-
     vector<string> hostPathVector = {hostName, pathName};
 
     return hostPathVector;
@@ -143,18 +147,15 @@ bool validateURL(string* url, string defaultProtocol){
 
 // This is a simple helper to ensure we have all required and appropriately used flags
 bool verifyValidCommandInput(int cmd_flags){
-    if (!checkUniqueArgs(cmd_flags)) // do we have -s or -l but not both?
-    {
+    if (!checkUniqueArgs(cmd_flags)){ // do we have -s or -l but not both?
         fprintf(stderr, "Error: only one may be allowed -i, -q, or -a\n");
         return false;
     }
-    else if (!checkHasArg(cmd_flags, ARG_INPUT_URL)) // do we have a -f with a fileName specified?
-    {
+    else if (!checkHasArg(cmd_flags, ARG_INPUT_URL)){ // do we have a -f with a fileName specified?
         fprintf(stderr, "Error: please include a INPUT_URL\n");
         return false;
     }
-    else if (!checkHasArg(cmd_flags, ARG_SAVE_LOCATION)) // do we have a -f with a fileName specified?
-    {
+    else if (!checkHasArg(cmd_flags, ARG_SAVE_LOCATION)){ // do we have a -f with a fileName specified?
         fprintf(stderr, "Error: please include a save location\n");
         return false;
     }
@@ -199,7 +200,7 @@ void usage(char *progname){
     fprintf(stderr, "   -i    print debugging information about command line parameters to stdout (only one of -i, -q, -a may be given)\n");
     fprintf(stderr, "   -q    print the sent HTTP request to stdout (only one of -i, -q, -a may be given)\n");
     fprintf(stderr, "   -a    print the sent HTTP response header (only one of -i, -q, -a may be given)\n");
-    fprintf(stderr, "   -w X  specifies location to save file is at path X (MUST BE GIVEN)");
-    fprintf(stderr, "   -u Y  specifies a INPUT_URL the client will access (MUST BE GIVEN)");
+    fprintf(stderr, "   -w X  specifies location to save file is at path X (MUST BE GIVEN)\n");
+    fprintf(stderr, "   -u Y  specifies a INPUT_URL the client will access (MUST BE GIVEN)\n");
     exitWithErr;
 }

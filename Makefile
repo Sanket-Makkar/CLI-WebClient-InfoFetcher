@@ -19,7 +19,6 @@ $(TARGETS): proj2.o ArgParser.o WebClient.o
 
 clean:
 	rm -f *.o
-	rm -f *.txt
 	
 distclean: clean
 	rm -f $(TARGETS)
