@@ -14,9 +14,12 @@ class WebClient{
         string path = "";
         string getRequest = "";
 
+        string headerIn = "";
+        vector<unsigned char> responseIn;
+
         void handleCLIArgs(string header, string request);
         int parseArgLineOptionals();
-        vector<string> httpGET(string request);
+        void httpGET(string request);
         vector<string> splitHttpHeaderAndResponse(string httpResponse);
 
         void handleHttpRSPStatus(string header);

@@ -58,24 +58,26 @@ void WebClient::Exec(){
     getRequest = "GET " + path + " HTTP/1.0\r\nHost: " + host + "\r\nUser-Agent: Case CSDS 325/425 WebClient 0.1\r\n\r\n";
     
     // actual socket work
-    vector<string> splitResponse = httpGET(getRequest);
+    // vector<string> splitResponse = httpGET(getRequest);
+    httpGET(getRequest);
 
     // unpack the values
-    string header = splitResponse.at(COUNTER_INITIAL_VALUE);
-    string response = splitResponse.at(OFF_BY_ONE_OFFSET);
+    // string header = splitResponse.at(COUNTER_INITIAL_VALUE);
+    // string response = splitResponse.at(OFF_BY_ONE_OFFSET);
 
     // deal with 200, 301, 400, 404, 505 error codes
-    handleHttpRSPStatus(header);
+    handleHttpRSPStatus(headerIn);
 
     // CLI work
-    handleCLIArgs(header, getRequest);
+    handleCLIArgs(headerIn, getRequest);
 
     // response can have binary data, and strings hate that - so lets convert to an unsigned char vector
     // vector<unsigned char> resposneConten
 
     // save the file (we would have exit if non-200 (not OK) error codes came up)
     FILE * file = fopen(savePath.c_str(), "w");
-    fprintf(file, "%s", response.c_str());
+    // fprintf(file, "%s", response.c_str());
+    fwrite(responseIn.data(), 1, responseIn.size(), file);
     fclose(file);
 }
 
@@ -114,12 +116,12 @@ int WebClient::parseArgLineOptionals(){
     return -1;
 }
 
-vector<string> WebClient::httpGET(string request){
+void WebClient::httpGET(string request){
     struct sockaddr_in sin;
     struct hostent *hinfo;
     struct protoent *protoinfo;
-    char buffer [BUFLEN];
-    int sd, ret;
+    // char buffer [BUFLEN];
+    int sd;//, ret;
 
     /* DNS lookup on host*/
     hinfo = gethostbyname(host.c_str());
@@ -152,6 +154,9 @@ vector<string> WebClient::httpGET(string request){
         printf("Error: Unable to create socket\n");
         exitWithErr;
     }
+    
+    // make a socket pointer
+    FILE *sp = fdopen(sd, "r");
 
     /* Send HTTP GET request */
     if (write(sd, request.c_str(), strlen(request.c_str())) < 0){
@@ -160,46 +165,68 @@ vector<string> WebClient::httpGET(string request){
     }
     
     /* Read and print the HTTP response */
-    string wholeResponse = "";
-    memset (buffer,0x0,BUFLEN);
-    while ((ret = read(sd, buffer, BUFLEN -1))){
-        buffer[ret] = '\0';
-        wholeResponse.append(buffer);
+    string readResponse = "";
+    char ch;
+    int separatorPos = 0;
+    while ((ch = fgetc(sp)) != EOF){
+        readResponse += ch;
+        separatorPos = readResponse.find("\r\n\r\n");
+        if (separatorPos >= 0){
+            break;
+        }
     }
-    if (ret < 0){
-        printf("Error: No response to web client request");
-        exitWithErr;
+    string response = readResponse.substr(COUNTER_INITIAL_VALUE, separatorPos);
+
+    vector<unsigned char> buffer;
+    char tempBuffer[1024];
+    int bytesRead = 0;
+    while ((bytesRead = fread(tempBuffer, 1, sizeof(tempBuffer), sp)) > 0) {
+        buffer.insert(buffer.end(), tempBuffer, tempBuffer + bytesRead);  // Correctly handle bytes read
     }
+    headerIn = response;
+    responseIn = buffer;
+
+    // string wholeResponse = "";
+    // memset (buffer,0x0,BUFLEN);
+    // while ((ret = read(sd, buffer, BUFLEN -1))){
+    //     buffer[ret] = '\0';
+    //     wholeResponse.append(buffer);
+    // }
+    // if (ret < 0){
+    //     printf("Error: No response to web client request");
+    //     exitWithErr;
+    // }
 
     // split the wholeResponse into {header, response}
-    vector<string> splitResponse = splitHttpHeaderAndResponse(wholeResponse);
+    // vector<string> splitResponse = splitHttpHeaderAndResponse(wholeResponse);
 
     /* close & exit */
     close (sd);
 
-    return splitResponse;
+    // return splitResponse;
+    return;
 }
 
-vector<string> WebClient::splitHttpHeaderAndResponse(string httpResponse){
-    string header = "";
-    string response = "";
+// vector<string> WebClient::splitHttpHeaderAndResponse(string httpResponse){
+//     string header = "";
+//     string response = "";
 
-    // locate the first '\r\n\r\n' --> this separates the header from the body
-    int separatingPosition = httpResponse.find("\r\n\r\n");
+//     // locate the first '\r\n\r\n' --> this separates the header from the body
+//     int separatingPosition = httpResponse.find("\r\n\r\n");
 
-    // grep for the positions of header or response
-    if (separatingPosition != FUNCTION_ERROR_RETURN_VALUE){
-        header = httpResponse.substr(COUNTER_INITIAL_VALUE, separatingPosition);
-        response = httpResponse.substr(separatingPosition + strlen("\r\n\r\n")); 
-    }
-    else{
-        header = httpResponse;
-    }
+//     // grep for the positions of header or response
+//     if (separatingPosition != FUNCTION_ERROR_RETURN_VALUE){
+//         header = httpResponse.substr(COUNTER_INITIAL_VALUE, separatingPosition);
+//         response = httpResponse.substr(separatingPosition + strlen("\r\n\r\n")); 
+//     }
+//     else{
+//         header = httpResponse;
+//     }
 
-    // pack the result into a vector and send over the vector
-    vector<string> splitResult = {header, response};
-    return splitResult;
-}
+//     // pack the result into a vector and send over the vector
+//     vector<string> splitResult = {header, response};
+//     return splitResult;
+// }
 
 void WebClient::handleHttpRSPStatus(string header){
     int headerPrecodeSize = strlen("HTTP/1.1 ");
